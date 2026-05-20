@@ -4,6 +4,11 @@ Workflow is terminal-first. You don't need Android Studio open at all to build a
 
 Tested on **Windows 10/11** and **Ubuntu 22.04+**. Where commands differ, both are shown side-by-side.
 
+<<<<<<< main
+> **Just want to install the app, not build it?** Skip this guide entirely. Ask a maintainer for access to the private release repo at [AlexNtFound/HitchPlay-releases](https://github.com/AlexNtFound/HitchPlay-releases/releases) — the [latest v0.1.0 release](https://github.com/AlexNtFound/HitchPlay-releases/releases/tag/app-v0.1.0) has a ready-to-install APK. You'll only need `adb` on your PC, not JDK/QNN SDK/Gradle. See the README for the installer path.
+
+=======
+>>>>>>> main
 ---
 
 ## Prerequisites
@@ -36,14 +41,24 @@ qnn.sdk.dir=/opt/qcom/aistack/qairt/2.42.0.251225
 
 Forward slashes always — Java `.properties` files treat `\` as an escape character, so backslashes on Windows will silently corrupt the path. This file is gitignored.
 
-**2. Place model config files.** Download `tokenizer.json` and `genie-config.json` from the [model release page](https://github.com/AlexNtFound/HitchPlay/releases/tag/model-qwen2_5_7b_instruct-v1) and drop them into:
+**2. Place the bundled model assets.** From the [model release page](https://github.com/AlexNtFound/HitchPlay/releases/tag/model-qwen2_5_7b_instruct-v1), download these four files and drop them into the locations shown:
 
-```
-android/ChatApp/src/main/assets/models/qwen2_5_7b_instruct/
-```
+| File | Size | Destination |
+|---|---|---|
+| `tokenizer.json` | ~7 MB | `android/ChatApp/src/main/assets/models/qwen2_5_7b_instruct/` |
+| `genie-config.json` | ~2 KB | `android/ChatApp/src/main/assets/models/qwen2_5_7b_instruct/` |
+| `whisper-tiny-en.tflite` | ~41 MB | `android/ChatApp/src/main/assets/` |
+| `whisper-tiny.tflite` | ~67 MB | `android/ChatApp/src/main/assets/` |
 
-Don't download the `.bin` files — those are fetched automatically at runtime.
+The first two are the Qwen LLM's runtime config + tokenizer. The two `.tflite` files are the Whisper speech-to-text models used for voice input.
 
+**Don't download the `.bin` files** from that release — the 6 large model weight files are auto-downloaded by the app on first launch. Bundling them in the APK is impossible (Android's ZIP32 4 GB limit) and would slow every build to a crawl anyway.
+
+<<<<<<< main
+If you skip a Whisper file the app will still build and the chat will work over text input, but voice input will crash at runtime.
+
+=======
+>>>>>>> main
 **3. Make `adb` available** on your PATH.
 
 *Windows* — either set the alias for the current PowerShell session only:
@@ -77,6 +92,33 @@ If you installed `adb` via `apt`, it's already on PATH and you can skip this ste
 
 ## Build, install, run
 
+There are two build variants. Both are built from the same source on the same `main` branch — debug vs release is purely *how the APK is packaged and signed*, not where the code lives.
+
+### Debug vs release at a glance
+
+| | Debug | Release |
+|---|---|---|
+| Command | `.\build.cmd assembleDebug` | `.\build.cmd assembleRelease` |
+| Output APK | `ChatApp\build\outputs\apk\debug\ChatApp-debug.apk` | `ChatApp\build\outputs\apk\release\ChatApp-release.apk` |
+| Signing | Auto-generated per-PC debug keystore (in `~/.android/debug.keystore`) | Project keystore from `ChatApp/ursa-release.keystore` — **not committed**, distributed via team password manager |
+| Signature consistency across PCs | **Each PC signs differently** — installing a new APK from PC B over PC A's install fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | **Same signature everywhere** that has the keystore — updates Just Work |
+| APK size | Larger (no minification, no resource shrinking) | Same size right now (minification is currently disabled — see note below) |
+| `debuggable=true` | Yes (debugger can attach, logs verbose) | No |
+| Build time | Slightly faster | Slightly slower |
+| When to use | Day-to-day dev, quick testing on your own phone | Sharing with collaborators, demos, anything you'd upload to a release page |
+
+> Minification note: the release build *could* shrink the APK by ~30 MB via R8 minification, but it's disabled today because this project uses reflection-heavy libraries (Hilt, Compose, kotlinx-serialization, OkHttp) that crash at runtime without curated proguard rules. The release APK still has all the real benefits (proper signing, no debuggable flag) — it just isn't smaller yet. Enabling minification is future work.
+
+### Which one should you pick right now?
+
+- **Working on the code yourself?** → Debug. Fast iteration.
+- **About to hand the APK to someone else (a labmate, a teammate, anyone with a supported phone)?** → Release. They install it once, you (or anyone else with the keystore) can ship them updates later without forcing an uninstall.
+- **Both?** → Build whichever you need right now; you can always build the other one later from the same code.
+
+---
+
+## Building a debug APK
+
 From `android/`:
 
 *Windows* (PowerShell):
@@ -88,6 +130,7 @@ adb shell am start -n com.quicinc.chatapp/com.chatgptlite.wanted.MainActivity
 ```
 
 *Linux* (bash) — first time only, mark the wrappers executable: `chmod +x build.sh gradlew`:
+<<<<<<< main
 
 ```bash
 ./build.sh assembleDebug
@@ -95,11 +138,109 @@ adb install -r ChatApp/build/outputs/apk/debug/ChatApp-debug.apk
 adb shell am start -n com.quicinc.chatapp/com.chatgptlite.wanted.MainActivity
 ```
 
+=======
+
+```bash
+./build.sh assembleDebug
+adb install -r ChatApp/build/outputs/apk/debug/ChatApp-debug.apk
+adb shell am start -n com.quicinc.chatapp/com.chatgptlite.wanted.MainActivity
+```
+
+>>>>>>> main
 `build.cmd` / `build.sh` is a thin wrapper around `gradlew` that auto-detects Java — checks `JAVA_HOME`, then versioned JDK install dirs (Adoptium, Corretto, Zulu, etc.), then Android Studio's bundled JBR, then `java` on PATH. If you'd rather call Gradle directly (because you've set `JAVA_HOME` yourself), `.\gradlew.bat assembleDebug` / `./gradlew assembleDebug` still works.
 
 The first run does a few one-time things automatically: downloads Gradle 8.9, provisions JDK 17, configures CMake, copies QNN libs into the build. Expect the first build to take 5–10 minutes; subsequent builds are ~30 seconds.
 
 If the build fails with a message starting `[Ursa]`, that's an intentional error — read it; it tells you exactly what to fix.
+
+> If a debug APK is already installed on the phone and you rebuilt on a *different* PC, the install will fail with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` because the two PCs sign with different auto-generated debug keystores. Either uninstall first (`adb uninstall com.quicinc.chatapp` — wipes downloaded model bins) or share `~/.android/debug.keystore` between your PCs (one-time copy).
+
+---
+
+## Building a release APK
+
+A release APK is signed with a stable, team-controlled keystore. APKs built on different PCs sign with the same key, so updates install cleanly across machines without the `INSTALL_FAILED_UPDATE_INCOMPATIBLE` error.
+
+> **Security note:** the keystore is intentionally **not** committed to this repo. If it were, anyone who cloned the public repo could build a malicious APK that Android would treat as a legitimate update to the real Ursa app — pushing arbitrary code to users' devices. The keystore lives only on the maintainers' machines and is distributed through a team password manager. `*.keystore` is in `.gitignore` as defense-in-depth.
+
+Pick the path that fits your situation:
+
+### Path A — You're a release maintainer (you have the team's keystore)
+
+A team release manager will give you `ursa-release.keystore` plus the three passwords. Drop the keystore into `android/ChatApp/` (the `.gitignore` rule means git won't accidentally pick it up), then add the passwords to `android/local.properties`:
+
+```properties
+ursa.release.storePassword=<from-password-manager>
+ursa.release.keyAlias=<from-password-manager>
+ursa.release.keyPassword=<from-password-manager>
+```
+
+Then build:
+
+*Windows*:
+```powershell
+.\build.cmd assembleRelease
+adb install -r ChatApp\build\outputs\apk\release\ChatApp-release.apk
+adb shell am start -n com.quicinc.chatapp/com.chatgptlite.wanted.MainActivity
+```
+
+*Linux*:
+```bash
+./build.sh assembleRelease
+adb install -r ChatApp/build/outputs/apk/release/ChatApp-release.apk
+adb shell am start -n com.quicinc.chatapp/com.chatgptlite.wanted.MainActivity
+```
+
+### Path B — You don't have the team keystore but want a release APK for your own testing
+
+You can generate a personal keystore. APKs you build with it will be signed with **your** key — so they won't update over a teammate's installed app, but they'll still install and run on your own devices and are valid "release-flavor" APKs.
+
+*Windows*:
+```powershell
+keytool -genkeypair -v -storetype PKCS12 `
+  -keystore ChatApp\ursa-release.keystore `
+  -keyalg RSA -keysize 2048 -validity 10000 `
+  -alias ursa-release `
+  -dname "CN=Ursa,OU=Ursa,O=Berkeley,L=Berkeley,ST=CA,C=US"
+```
+
+*Linux*:
+```bash
+keytool -genkeypair -v -storetype PKCS12 \
+  -keystore ChatApp/ursa-release.keystore \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -alias ursa-release \
+  -dname "CN=Ursa,OU=Ursa,O=Berkeley,L=Berkeley,ST=CA,C=US"
+```
+
+`keytool` ships with the JDK so it's already on PATH if `java -version` works. It'll prompt you for a keystore password and a key password. Pick anything — write them down for the next step:
+
+```properties
+# android/local.properties
+ursa.release.storePassword=<the-password-you-just-typed>
+ursa.release.keyAlias=ursa-release
+ursa.release.keyPassword=<the-password-you-just-typed>
+```
+
+Then build the same way as Path A.
+
+### What happens if the keystore isn't configured at all
+
+If `local.properties` doesn't have the credentials, or `ChatApp/ursa-release.keystore` doesn't exist, `assembleRelease` still **builds** — but produces an **unsigned** APK that can't be installed. That's by design: fresh clones can run `assembleRelease` to verify it compiles without forcing every developer to set up signing first. You'll get a non-fatal warning during the build. To actually install and distribute, follow Path A or B above.
+
+### Initial team keystore creation (one-time, only the very first maintainer)
+
+Done once, ever. The output goes into the team password manager — never the repo.
+
+```powershell
+keytool -genkeypair -v -storetype PKCS12 `
+  -keystore ursa-release.keystore `
+  -keyalg RSA -keysize 2048 -validity 10000 `
+  -alias ursa-release `
+  -dname "CN=Ursa,OU=Ursa,O=Berkeley,L=Berkeley,ST=CA,C=US"
+```
+
+Save the resulting `ursa-release.keystore` file, the keystore password, and the key password into a team-shared password manager (1Password, Bitwarden, etc.). Distribute to release maintainers via that channel — never via Slack/email/git.
 
 ---
 
@@ -207,6 +348,41 @@ On device (auto-populated):
    ```
 
 6. Build a new APK and ship. Existing devices detect the manifest change and re-download only the affected files.
+
+---
+
+## Maintainers: publishing a new app release
+
+App releases live in a **separate, private repo** ([AlexNtFound/HitchPlay-releases](https://github.com/AlexNtFound/HitchPlay-releases)) so that the Qualcomm-licensed binaries inside each APK aren't accessible to anyone who hasn't accepted Qualcomm's EULA. The public code repo stays public; only the binary deliverables are restricted.
+
+To publish a new version:
+
+1. **Build the release APK** locally (Path A from above — uses the team keystore so signatures stay consistent across versions):
+   ```powershell
+   .\build.cmd assembleRelease
+   ```
+   Output: `ChatApp\build\outputs\apk\release\ChatApp-release.apk`
+
+2. **Rename to a recognizable filename**:
+   ```powershell
+   Copy-Item ChatApp\build\outputs\apk\release\ChatApp-release.apk $env:USERPROFILE\Desktop\Ursa-v0.2.0.apk
+   ```
+
+3. **Publish the release** at https://github.com/AlexNtFound/HitchPlay-releases/releases/new:
+   - Tag: `app-v<major>.<minor>.<patch>` (e.g. `app-v0.2.0`)
+   - Title: `Ursa v0.2.0`
+   - Description: brief changelog (what changed since the previous version, any known issues)
+   - Drag-drop the renamed APK
+   - Leave "Set as a pre-release" unchecked (unless it really is alpha-quality)
+   - **Publish**, don't save as draft
+
+4. **Invite any new collaborators** to the private repo so they can see the release: Settings → Collaborators → Add people.
+
+5. **Notify the team** that v0.2.0 is out — e.g. Slack/email with the [latest release link](https://github.com/AlexNtFound/HitchPlay-releases/releases/latest).
+
+Collaborators with the previous APK installed can update cleanly: `adb install -r Ursa-v0.2.0.apk`. The same signing keystore is used across all releases, so updates install over existing installs without wiping the downloaded model bins. First-time installers go through the ~3 min model auto-download on first launch.
+
+> **Versioning:** semver. Patch (`v0.1.0` → `v0.1.1`) for bugfixes. Minor (`v0.1.0` → `v0.2.0`) for new features. Major (`v0.x.y` → `v1.0.0`) for breaking changes (e.g. a new rover protocol, dropping a SoC, swapping the LLM).
 
 ---
 
